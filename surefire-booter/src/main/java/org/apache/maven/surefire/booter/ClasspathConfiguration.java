@@ -19,6 +19,9 @@ package org.apache.maven.surefire.booter;
  * under the License.
  */
 
+import java.io.File;
+import java.util.Collection;
+
 /**
  * Represents the classpaths for the BooterConfiguration.
  * <br>
@@ -40,6 +43,14 @@ public class ClasspathConfiguration
     private final Classpath classpathUrls;
 
     private final Classpath surefireClasspathUrls;
+    
+    private final Classpath modulepathUrls;
+    
+    private final File moduleDescriptor;
+    
+    private final Collection<String> packages;
+    
+    private final File patchFile;
 
     /**
      * The surefire classpath to use when invoking in-process with the plugin
@@ -57,15 +68,15 @@ public class ClasspathConfiguration
 
     public ClasspathConfiguration( boolean enableAssertions, boolean childDelegation )
     {
-        this( Classpath.emptyClasspath(), Classpath.emptyClasspath(), Classpath.emptyClasspath(), enableAssertions,
-              childDelegation );
+        this( Classpath.emptyClasspath(), Classpath.emptyClasspath(), Classpath.emptyClasspath(), 
+              enableAssertions, childDelegation );
     }
 
     ClasspathConfiguration( PropertiesWrapper properties )
     {
         this( properties.getClasspath( CLASSPATH ), properties.getClasspath( SUREFIRE_CLASSPATH ),
-              Classpath.emptyClasspath(),
-              properties.getBooleanProperty( ENABLE_ASSERTIONS ), properties.getBooleanProperty( CHILD_DELEGATION ) );
+              Classpath.emptyClasspath(), properties.getBooleanProperty( ENABLE_ASSERTIONS ),
+              properties.getBooleanProperty( CHILD_DELEGATION ) );
     }
 
     public ClasspathConfiguration( Classpath testClasspath, Classpath surefireClassPathUrls, Classpath inprocClasspath,
@@ -76,6 +87,25 @@ public class ClasspathConfiguration
         this.inprocClasspath = inprocClasspath;
         this.classpathUrls = testClasspath;
         this.surefireClasspathUrls = surefireClassPathUrls;
+        this.moduleDescriptor = null;
+        this.modulepathUrls = null;
+        this.packages = null;
+        this.patchFile = null;
+    }
+
+    public ClasspathConfiguration( Classpath testClasspath, Classpath testModulepath, Classpath surefireClassPathUrls,
+                                   Classpath inprocClasspath, File moduleDescriptor, Collection<String> packages,
+                                   File patchFile, boolean enableAssertions, boolean childDelegation )
+    {
+        this.enableAssertions = enableAssertions;
+        this.childDelegation = childDelegation;
+        this.inprocClasspath = inprocClasspath;
+        this.classpathUrls = testClasspath;
+        this.modulepathUrls = testModulepath;
+        this.surefireClasspathUrls = surefireClassPathUrls;
+        this.moduleDescriptor = moduleDescriptor;
+        this.packages = packages;
+        this.patchFile = patchFile;
     }
 
     public ClassLoader createMergedClassLoader()
@@ -94,6 +124,16 @@ public class ClasspathConfiguration
     {
         return classpathUrls;
     }
+    
+    public Classpath getTestModulepath()
+    {
+        return modulepathUrls;
+    }
+    
+    public File getModuleDescriptor()
+    {
+        return moduleDescriptor;
+    }
 
     public void trickClassPathWhenManifestOnlyClasspath()
         throws SurefireExecutionException
@@ -110,5 +150,15 @@ public class ClasspathConfiguration
     public boolean isChildDelegation()
     {
         return childDelegation;
+    }
+
+    public Collection<String> getPackages()
+    {
+        return packages;
+    }
+
+    public File getPatchFile()
+    {
+        return patchFile;
     }
 }

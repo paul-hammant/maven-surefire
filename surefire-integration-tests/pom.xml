@@ -94,6 +94,7 @@
         <artifactId>maven-failsafe-plugin</artifactId>
         <version>2.12.4</version> <!-- ${shadedVersion}, but resolved due to https://issues.apache.org/jira/browse/MRELEASE-799 -->
         <configuration>
+          <jvm>${test.jre}/bin/java</jvm>
           <runOrder>alphabetical</runOrder>
           <threadCount>1</threadCount>
           <perCoreThreadCount>false</perCoreThreadCount>
@@ -115,6 +116,7 @@
             <useInterpolatedSettings>${useInterpolatedSettings}</useInterpolatedSettings>
             <testBuildDirectory>${project.build.testOutputDirectory}</testBuildDirectory>
             <verifier.forkMode>${verifier.forkMode}</verifier.forkMode>
+            <maven.compiler.executable>${test.jre}/bin/javac</maven.compiler.executable>
           </systemPropertyVariables>
           <redirectTestOutputToFile>false</redirectTestOutputToFile>
         </configuration>

@@ -28,10 +28,18 @@ import org.apache.maven.surefire.booter.ForkedBooter;
 import org.apache.maven.surefire.booter.StartupConfiguration;
 import org.apache.maven.surefire.booter.SurefireBooterForkException;
 import org.apache.maven.surefire.util.internal.ImmutableMap;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.ClassVisitor;
+import org.objectweb.asm.ModuleVisitor;
+import org.objectweb.asm.Opcodes;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -131,9 +139,9 @@ public class ForkConfiguration
     }
 
     /**
-     * @param classPath            cla the classpath arguments
+     * @param classPath            the classpath arguments
      * @param startupConfiguration The startup configuration
-     * @param threadNumber         the thread number, to be the replacement in the argLine   @return A commandline
+     * @param threadNumber         the thread number, to be the replacement in the argLine
      * @return CommandLine able to flush entire command going to be sent to forked JVM
      * @throws org.apache.maven.surefire.booter.SurefireBooterForkException
      *          when unable to perform the fork
@@ -143,15 +151,22 @@ public class ForkConfiguration
                                                                int threadNumber )
         throws SurefireBooterForkException
     {
-        return createCommandLine( classPath,
-                                  startupConfiguration.getClassLoaderConfiguration()
-                                      .isManifestOnlyJarRequestedAndUsable(),
-                                  startupConfiguration.isShadefire(), startupConfiguration.isProviderMainClass()
-            ? startupConfiguration.getActualClassName()
-            : ForkedBooter.class.getName(), threadNumber );
+        Classpath testModulePath = startupConfiguration.getClasspathConfiguration().getTestModulepath();
+        
+        return createCommandLine( classPath, 
+                              testModulePath != null ? testModulePath.getClassPath() : null, 
+                              startupConfiguration.getClasspathConfiguration().getModuleDescriptor(),
+                              startupConfiguration.getClasspathConfiguration().getPackages(),
+                              startupConfiguration.getClasspathConfiguration().getPatchFile(),
+                              startupConfiguration.getClassLoaderConfiguration().isManifestOnlyJarRequestedAndUsable(),
+                              startupConfiguration.isShadefire(),
+                              startupConfiguration.isProviderMainClass() ? startupConfiguration.getActualClassName()
+         : ForkedBooter.class.getName(), threadNumber );
     }
 
-    OutputStreamFlushableCommandline createCommandLine( List<String> classPath, boolean useJar, boolean shadefire,
+    OutputStreamFlushableCommandline createCommandLine( List<String> classPath, List<String> modulePath,
+                                                        File moduleDescriptor, Collection<String> packages,
+                                                        File patchFile, boolean useJar, boolean shadefire,
                                                         String providerThatHasMainMethod, int threadNumber )
         throws SurefireBooterForkException
     {
@@ -177,7 +192,22 @@ public class ForkConfiguration
             cli.createArg().setLine( getDebugLine() );
         }
 
-        if ( useJar )
+        if ( moduleDescriptor != null )
+        {
+            try
+            {
+                File argsFile =
+                    createArgsFile( moduleDescriptor, modulePath, classPath, packages, patchFile,
+                                    providerThatHasMainMethod );
+                
+                cli.createArg().setValue( "@" + escapeToPlatformPath( argsFile.getAbsolutePath() ) );
+            }
+            catch ( IOException e )
+            {
+                throw new SurefireBooterForkException( "Error creating args file", e );
+            }
+        }
+        else if ( useJar )
         {
             try
             {
@@ -316,6 +346,86 @@ public class ForkConfiguration
             jos.close();
         }
     }
+    
+    private File createArgsFile( File moduleDescriptor, List<String> modulePath, List<String> classPath,
+                                 Collection<String> packages, File patchFile, String startClassName )
+        throws IOException
+    {
+        File file = File.createTempFile( "surefireargs", "", tempDirectory );
+        if ( !debug )
+        {
+            file.deleteOnExit();
+        }
+
+        final String moduleName = getModuleName( moduleDescriptor );
+        
+        BufferedWriter writer = null;
+        try 
+        {
+            final String ps = System.getProperty( "path.separator" );
+            
+            writer = new BufferedWriter( new FileWriter( file ) );
+
+            if ( modulePath != null && !modulePath.isEmpty() )
+            {
+                writer.write( "--module-path" );
+                writer.newLine();
+                
+                for ( String mp : modulePath )
+                {
+                    writer.append( mp ).append( ps );
+                }
+                writer.newLine();
+            }
+
+            if ( classPath != null && !classPath.isEmpty() )
+            {
+                writer.write( "--class-path" );
+                writer.newLine();
+                
+                for ( String cp : classPath )
+                {
+                    writer.append( cp ).append( ps );
+                }
+                writer.newLine();
+            }
+
+            writer.write( "--patch-module" );
+            writer.newLine();
+            writer.append( moduleName ).append( '=' ).append( patchFile.getPath() );
+            writer.newLine();
+
+            for ( String pckg : packages )
+            {
+                writer.write( "--add-exports" );
+                writer.newLine();
+                writer.append( moduleName ).append( '/' ).append( pckg ).append( '=' ).append( "ALL-UNNAMED" );
+                writer.newLine();
+            }
+            
+            writer.write( "--add-modules" );
+            writer.newLine();
+            writer.append( moduleName );
+            writer.newLine();
+
+            writer.write( "--add-reads" );
+            writer.newLine();
+            writer.append( moduleName ).append( '=' ).append( "ALL-UNNAMED" );
+            writer.newLine();
+
+            writer.write( startClassName );
+            writer.newLine();
+        }
+        finally
+        {
+            if ( writer != null )
+            {
+                writer.close();
+            }
+        }
+        
+        return file;
+    }
 
     public boolean isDebug()
     {
@@ -364,4 +474,36 @@ public class ForkConfiguration
     {
         return map == null ? Collections.<K, V>emptyMap() : new ImmutableMap<K, V>( map );
     }
+    
+
+    private String getModuleName( File moduleDescriptor )
+    {
+        if ( moduleDescriptor == null )
+        {
+            return null;
+        }
+        
+        final StringBuilder sb = new StringBuilder();
+
+        try
+        {
+            new ClassReader( new FileInputStream( moduleDescriptor ) ).accept( new ClassVisitor( Opcodes.ASM6 )
+            {
+                @Override
+                public ModuleVisitor visitModule( String name, int access, String version )
+                {
+                    sb.append( name );
+                    return super.visitModule( name, access, version );
+                }
+            }, 0 );
+        }
+        catch ( IOException e )
+        {
+            // noop
+        }
+        
+        return sb.toString();
+    }
+
+
 }

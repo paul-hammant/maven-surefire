@@ -1,6 +1,43 @@
 // CHECKSTYLE_OFF: FileLength|RegexpHeader
 package org.apache.maven.plugin.surefire;
 
+import static java.lang.Thread.currentThread;
+import static org.apache.commons.lang3.JavaVersion.JAVA_1_7;
+import static org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
+import static org.apache.commons.lang3.SystemUtils.isJavaVersionAtLeast;
+import static org.apache.maven.shared.utils.StringUtils.capitalizeFirstLetter;
+import static org.apache.maven.shared.utils.StringUtils.isEmpty;
+import static org.apache.maven.shared.utils.StringUtils.isNotBlank;
+import static org.apache.maven.shared.utils.StringUtils.split;
+import static org.apache.maven.surefire.suite.RunResult.failure;
+import static org.apache.maven.surefire.suite.RunResult.noTestsRun;
+import static org.apache.maven.surefire.util.ReflectionUtils.invokeGetter;
+import static org.apache.maven.surefire.util.ReflectionUtils.invokeStaticMethod;
+import static org.apache.maven.surefire.util.ReflectionUtils.tryLoadClass;
+
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Array;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Set;
+import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+
+import javax.annotation.Nonnull;
+
+import org.apache.commons.lang3.StringUtils;
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -79,39 +116,9 @@ import org.apache.maven.surefire.util.RunOrder;
 import org.apache.maven.surefire.util.SurefireReflectionException;
 import org.apache.maven.toolchain.Toolchain;
 import org.apache.maven.toolchain.ToolchainManager;
-
-import javax.annotation.Nonnull;
-import java.io.File;
-import java.io.IOException;
-import java.lang.reflect.Array;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-
-import static java.lang.Thread.currentThread;
-import static org.apache.commons.lang3.JavaVersion.JAVA_1_7;
-import static org.apache.commons.lang3.SystemUtils.IS_OS_WINDOWS;
-import static org.apache.commons.lang3.SystemUtils.isJavaVersionAtLeast;
-import static org.apache.maven.shared.utils.StringUtils.capitalizeFirstLetter;
-import static org.apache.maven.shared.utils.StringUtils.isEmpty;
-import static org.apache.maven.shared.utils.StringUtils.isNotBlank;
-import static org.apache.maven.shared.utils.StringUtils.split;
-import static org.apache.maven.surefire.suite.RunResult.failure;
-import static org.apache.maven.surefire.suite.RunResult.noTestsRun;
-import static org.apache.maven.surefire.util.ReflectionUtils.invokeGetter;
-import static org.apache.maven.surefire.util.ReflectionUtils.invokeStaticMethod;
-import static org.apache.maven.surefire.util.ReflectionUtils.tryLoadClass;
+import org.codehaus.plexus.languages.java.jpms.LocationManager;
+import org.codehaus.plexus.languages.java.jpms.ResolvePathsRequest;
+import org.codehaus.plexus.languages.java.jpms.ResolvePathsResult;
 
 /**
  * Abstract base class for running tests using Surefire.
@@ -713,6 +720,9 @@ public abstract class AbstractSurefireMojo
      */
     @Component
     private ToolchainManager toolchainManager;
+    
+    @Component
+    private LocationManager locationManager;
 
     private Artifact surefireBooterArtifact;
 
@@ -1088,7 +1098,7 @@ public abstract class AbstractSurefireMojo
             createCopyAndReplaceForkNumPlaceholder( effectiveProperties, 1 ).copyToSystemProperties();
 
             InPluginVMSurefireStarter surefireStarter =
-                createInprocessStarter( provider, classLoaderConfiguration, runOrderParameters );
+                createInprocessStarter( provider, classLoaderConfiguration, runOrderParameters, scanResult );
             return surefireStarter.runSuitesInProcess( scanResult );
         }
         else
@@ -1104,7 +1114,7 @@ public abstract class AbstractSurefireMojo
             try
             {
                 forkStarter = createForkStarter( provider, forkConfiguration, classLoaderConfiguration,
-                                                       runOrderParameters, getConsoleLogger() );
+                                                       runOrderParameters, scanResult, getConsoleLogger() );
 
                 return forkStarter.run( effectiveProperties, scanResult );
             }
@@ -1631,7 +1641,8 @@ public abstract class AbstractSurefireMojo
     }
 
     StartupConfiguration createStartupConfiguration( ProviderInfo provider,
-                                                     ClassLoaderConfiguration classLoaderConfiguration )
+                                                     ClassLoaderConfiguration classLoaderConfiguration,
+                                                     DefaultScanResult scanResult )
         throws MojoExecutionException, MojoFailureException
     {
         try
@@ -1650,17 +1661,64 @@ public abstract class AbstractSurefireMojo
                     providerClasspath.addClassPathElementUrl( surefireArtifact.getFile().getAbsolutePath() )
                             .addClassPathElementUrl( getApiArtifact().getFile().getAbsolutePath() );
 
-            final Classpath testClasspath = generateTestClasspath();
+            final List<String> testPath = generateTestClasspath();
+            
+            File moduleDescriptor = new File( getClassesDirectory(), "module-info.class" );
+            
+            final ClasspathConfiguration classpathConfiguration;
+            if ( moduleDescriptor.exists() )
+            {
+                ResolvePathsRequest<String> req =
+                    ResolvePathsRequest.withStrings( testPath )
+                                       .setMainModuleDescriptor( moduleDescriptor.getAbsolutePath() );
+                
+                ResolvePathsResult<String> result;
+                try
+                {
+                    result = locationManager.resolvePaths( req );
+                }
+                catch ( IOException e )
+                {
+                    throw new MojoExecutionException( e.getMessage(), e );
+                }
+                
+                Classpath testClasspath = new Classpath( result.getClasspathElements() );
+                Classpath testModulepath = new Classpath( result.getModulepathElements().keySet() );
+                
+                Set<String> packages = new TreeSet<String>();
+                
+                for ( Object file : scanResult.getFiles() )
+                {
+                   String className = (String) file;
+                   packages.add( StringUtils.substringBeforeLast( className, "." ) );
+                }
+                
+                classpathConfiguration =
+                    new ClasspathConfiguration( testClasspath, testModulepath, providerClasspath, inprocClassPath,
+                                                moduleDescriptor, packages, getTestClassesDirectory(),
+                                                effectiveIsEnableAssertions(), isChildDelegation() );
 
-            getConsoleLogger().debug( testClasspath.getLogMessage( "test" ) );
-            getConsoleLogger().debug( providerClasspath.getLogMessage( "provider" ) );
+                getConsoleLogger().debug( testClasspath.getLogMessage( "test", "classpath" ) );
+                getConsoleLogger().debug( testModulepath.getLogMessage( "test", "modulepath" ) );
+                getConsoleLogger().debug( providerClasspath.getLogMessage( "provider" ) );
 
-            getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test(compact)" ) );
-            getConsoleLogger().debug( providerClasspath.getCompactLogMessage( "provider(compact)" ) );
+                getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test(compact)", "classpath" ) );
+                getConsoleLogger().debug( testModulepath.getCompactLogMessage( "test(compact)", "modulepath" ) );
+                getConsoleLogger().debug( providerClasspath.getCompactLogMessage( "provider(compact)" ) );
+            }
+            else
+            {
+                Classpath testClasspath = new Classpath( testPath );
+                classpathConfiguration =
+                    new ClasspathConfiguration( testClasspath, providerClasspath, inprocClassPath,
+                                                effectiveIsEnableAssertions(), isChildDelegation() );
+                
+                getConsoleLogger().debug( testClasspath.getLogMessage( "test" ) );
+                getConsoleLogger().debug( providerClasspath.getLogMessage( "provider" ) );
 
-            final ClasspathConfiguration classpathConfiguration =
-                new ClasspathConfiguration( testClasspath, providerClasspath, inprocClassPath,
-                                            effectiveIsEnableAssertions(), isChildDelegation() );
+                getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test(compact)" ) );
+                getConsoleLogger().debug( providerClasspath.getCompactLogMessage( "provider(compact)" ) );
+            }
 
             return new StartupConfiguration( providerName, classpathConfiguration, classLoaderConfiguration,
                                              isForking(), false );
@@ -1922,11 +1980,13 @@ public abstract class AbstractSurefireMojo
     }
 
     private ForkStarter createForkStarter( ProviderInfo provider, ForkConfiguration forkConfiguration,
-                                             ClassLoaderConfiguration classLoaderConfiguration,
-                                             RunOrderParameters runOrderParameters, ConsoleLogger log )
+                                           ClassLoaderConfiguration classLoaderConfiguration,
+                                           RunOrderParameters runOrderParameters, DefaultScanResult scanResult,
+                                           ConsoleLogger log )
         throws MojoExecutionException, MojoFailureException
     {
-        StartupConfiguration startupConfiguration = createStartupConfiguration( provider, classLoaderConfiguration );
+        StartupConfiguration startupConfiguration =
+            createStartupConfiguration( provider, classLoaderConfiguration, scanResult );
         String configChecksum = getConfigChecksum();
         StartupReportConfiguration startupReportConfiguration = getStartupReportConfiguration( configChecksum );
         ProviderConfiguration providerConfiguration = createProviderConfiguration( runOrderParameters );
@@ -1935,16 +1995,18 @@ public abstract class AbstractSurefireMojo
     }
 
     private InPluginVMSurefireStarter createInprocessStarter( ProviderInfo provider,
-                                                                ClassLoaderConfiguration classLoaderConfiguration,
-                                                                RunOrderParameters runOrderParameters )
+                                                              ClassLoaderConfiguration classLoaderConfiguration,
+                                                              RunOrderParameters runOrderParameters,
+                                                              DefaultScanResult scanResult )
         throws MojoExecutionException, MojoFailureException
     {
-        StartupConfiguration startupConfiguration = createStartupConfiguration( provider, classLoaderConfiguration );
+        StartupConfiguration startupConfiguration =
+            createStartupConfiguration( provider, classLoaderConfiguration, scanResult );
         String configChecksum = getConfigChecksum();
         StartupReportConfiguration startupReportConfiguration = getStartupReportConfiguration( configChecksum );
         ProviderConfiguration providerConfiguration = createProviderConfiguration( runOrderParameters );
-        return new InPluginVMSurefireStarter( startupConfiguration, providerConfiguration,
-                                                    startupReportConfiguration, consoleLogger );
+        return new InPluginVMSurefireStarter( startupConfiguration, providerConfiguration, startupReportConfiguration,
+                                              consoleLogger );
     }
 
     protected ForkConfiguration getForkConfiguration()
@@ -2194,7 +2256,7 @@ public abstract class AbstractSurefireMojo
      * @throws ArtifactNotFoundException   when it happens
      * @throws ArtifactResolutionException when it happens
      */
-    private Classpath generateTestClasspath()
+    private List<String> generateTestClasspath()
         throws InvalidVersionSpecificationException, MojoFailureException, ArtifactResolutionException,
         ArtifactNotFoundException, MojoExecutionException
     {
@@ -2250,7 +2312,7 @@ public abstract class AbstractSurefireMojo
             addTestNgUtilsArtifacts( classpath );
         }
 
-        return new Classpath( classpath );
+        return classpath;
     }
 
     private void addTestNgUtilsArtifacts( List<String> classpath )

@@ -23,7 +23,7 @@
   <parent>
     <artifactId>maven-parent</artifactId>
     <groupId>org.apache.maven</groupId>
-    <version>26</version>
+    <version>30</version>
     <relativePath>../pom/maven/pom.xml</relativePath>
   </parent>
 
@@ -86,11 +86,10 @@
   </distributionManagement>
 
   <properties>
-    <maven.compiler.source>1.6</maven.compiler.source>
-    <maven.compiler.target>1.6</maven.compiler.target>
+    <javaVersion>6</javaVersion>
     <mavenVersion>2.2.1</mavenVersion>
     <!-- <shadedVersion>2.12.4</shadedVersion> commented out due to https://issues.apache.org/jira/browse/MRELEASE-799 -->
-    <mavenPluginPluginVersion>3.3</mavenPluginPluginVersion>
+    <mavenPluginPluginVersion>3.5</mavenPluginPluginVersion>
     <commonsLang3Version>3.5</commonsLang3Version>
     <commonsIoVersion>2.5</commonsIoVersion>
     <mavenSharedUtilsVersion>0.9</mavenSharedUtilsVersion>
@@ -353,7 +352,7 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>animal-sniffer-maven-plugin</artifactId>
-          <version>1.15</version>
+          <version>1.16</version>
           <executions>
             <execution>
               <id>signature-check</id>
@@ -388,7 +387,7 @@
         </plugin>
         <plugin>
           <artifactId>maven-shade-plugin</artifactId>
-          <version>3.0.0</version>
+          <version>3.1.0</version>
         </plugin>
         <plugin>
           <artifactId>maven-plugin-plugin</artifactId>
@@ -445,6 +444,21 @@
                   <version>[3.1.0,)</version>
                 </requireMavenVersion>
               </rules>
+            </configuration>
+          </execution>
+          <execution>
+            <id>enforce-bytecode-version</id>
+            <configuration>
+             <rules>
+               <enforceBytecodeVersion>
+                 <ignoreClasses>
+                   <ignoreClass>module-info</ignoreClass>
+                 </ignoreClasses> 
+                 <excludes>
+                    <exclude>org.codehaus.plexus:plexus-java</exclude>
+                  </excludes>
+               </enforceBytecodeVersion>
+             </rules>
             </configuration>
           </execution>
         </executions>

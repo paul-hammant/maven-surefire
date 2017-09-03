@@ -191,8 +191,13 @@ public class Classpath implements Iterable<String>
 
     public String getLogMessage( String descriptor )
     {
+        return getLogMessage( descriptor, "classpath" );
+    }
+
+    public String getLogMessage( String descriptor, String pathType )
+    {
         StringBuilder result = new StringBuilder();
-        result.append( descriptor ).append( " classpath:" );
+        result.append( descriptor ).append( ' ' ).append( pathType ).append( ':' );
         for ( String element : unmodifiableElements )
         {
             result.append( "  " ).append( element );
@@ -202,8 +207,13 @@ public class Classpath implements Iterable<String>
 
     public String getCompactLogMessage( String descriptor )
     {
+        return getCompactLogMessage( descriptor, "classpath" );
+    }
+
+    public String getCompactLogMessage( String descriptor, String pathType )
+    {
         StringBuilder result = new StringBuilder();
-        result.append( descriptor ).append( " classpath:" );
+        result.append( descriptor ).append( ' ' ).append( pathType ).append( ':' );
         for ( String element : unmodifiableElements )
         {
             result.append( "  " );

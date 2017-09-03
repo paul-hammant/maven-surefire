@@ -146,7 +146,7 @@ public class SurefireDependencyResolver
                 Artifact artifact = (Artifact) o;
 
                 log.debug(
-                    "Adding to " + pluginName + " test classpath: " + artifact.getFile().getAbsolutePath() + " Scope: "
+                    "Adding to " + pluginName + " test path: " + artifact.getFile().getAbsolutePath() + " Scope: "
                         + artifact.getScope() );
 
                 files.add( artifact.getFile().getAbsolutePath() );
