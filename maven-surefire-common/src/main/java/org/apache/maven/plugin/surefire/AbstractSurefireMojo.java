@@ -79,6 +79,9 @@ import org.apache.maven.surefire.util.RunOrder;
 import org.apache.maven.surefire.util.SurefireReflectionException;
 import org.apache.maven.toolchain.Toolchain;
 import org.apache.maven.toolchain.ToolchainManager;
+import org.codehaus.plexus.languages.java.jpms.LocationManager;
+import org.codehaus.plexus.languages.java.jpms.ResolvePathsRequest;
+import org.codehaus.plexus.languages.java.jpms.ResolvePathsResult;
 
 import javax.annotation.Nonnull;
 import java.io.File;
@@ -713,6 +716,9 @@ public abstract class AbstractSurefireMojo
      */
     @Component
     private ToolchainManager toolchainManager;
+    
+    @Component
+    private LocationManager locationManager;
 
     private Artifact surefireBooterArtifact;
 
@@ -1650,17 +1656,55 @@ public abstract class AbstractSurefireMojo
                     providerClasspath.addClassPathElementUrl( surefireArtifact.getFile().getAbsolutePath() )
                             .addClassPathElementUrl( getApiArtifact().getFile().getAbsolutePath() );
 
-            final Classpath testClasspath = generateTestClasspath();
+            final List<String> testPath = generateTestClasspath();
+            
+            File moduleDescriptor = new File( getClassesDirectory(), "module-info.class" );
+            
+            final ClasspathConfiguration classpathConfiguration;
+            if ( moduleDescriptor.exists() )
+            {
+                ResolvePathsRequest<String> req =
+                    ResolvePathsRequest.withStrings( testPath )
+                                       .setMainModuleDescriptor( moduleDescriptor.getAbsolutePath() );
+                
+                ResolvePathsResult<String> result;
+                try
+                {
+                    result = locationManager.resolvePaths( req );
+                }
+                catch ( IOException e )
+                {
+                    throw new MojoExecutionException( e.getMessage(), e );
+                }
+                
+                Classpath testClasspath = new Classpath( result.getClasspathElements() );
+                Classpath testModulepath = new Classpath( result.getModulepathElements().keySet() );
+                
+                classpathConfiguration =
+                    new ClasspathConfiguration( testClasspath, testModulepath, providerClasspath, inprocClassPath,
+                                                moduleDescriptor, effectiveIsEnableAssertions(), isChildDelegation() );
 
-            getConsoleLogger().debug( testClasspath.getLogMessage( "test" ) );
-            getConsoleLogger().debug( providerClasspath.getLogMessage( "provider" ) );
+                getConsoleLogger().debug( testClasspath.getLogMessage( "test-classpath" ) );
+                getConsoleLogger().debug( testModulepath.getLogMessage( "test-modulepath" ) );
+                getConsoleLogger().debug( providerClasspath.getLogMessage( "provider" ) );
 
-            getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test(compact)" ) );
-            getConsoleLogger().debug( providerClasspath.getCompactLogMessage( "provider(compact)" ) );
+                getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test-classpath(compact)" ) );
+                getConsoleLogger().debug( testModulepath.getCompactLogMessage( "test-modulepath(compact)" ) );
+                getConsoleLogger().debug( providerClasspath.getCompactLogMessage( "provider(compact)" ) );
+            }
+            else
+            {
+                Classpath testClasspath = new Classpath( testPath );
+                classpathConfiguration =
+                    new ClasspathConfiguration( testClasspath, providerClasspath, inprocClassPath,
+                                                effectiveIsEnableAssertions(), isChildDelegation() );
+                
+                getConsoleLogger().debug( testClasspath.getLogMessage( "test" ) );
+                getConsoleLogger().debug( providerClasspath.getLogMessage( "provider" ) );
 
-            final ClasspathConfiguration classpathConfiguration =
-                new ClasspathConfiguration( testClasspath, providerClasspath, inprocClassPath,
-                                            effectiveIsEnableAssertions(), isChildDelegation() );
+                getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test(compact)" ) );
+                getConsoleLogger().debug( providerClasspath.getCompactLogMessage( "provider(compact)" ) );
+            }
 
             return new StartupConfiguration( providerName, classpathConfiguration, classLoaderConfiguration,
                                              isForking(), false );
@@ -2194,7 +2238,7 @@ public abstract class AbstractSurefireMojo
      * @throws ArtifactNotFoundException   when it happens
      * @throws ArtifactResolutionException when it happens
      */
-    private Classpath generateTestClasspath()
+    private List<String> generateTestClasspath()
         throws InvalidVersionSpecificationException, MojoFailureException, ArtifactResolutionException,
         ArtifactNotFoundException, MojoExecutionException
     {
@@ -2250,7 +2294,7 @@ public abstract class AbstractSurefireMojo
             addTestNgUtilsArtifacts( classpath );
         }
 
-        return new Classpath( classpath );
+        return classpath;
     }
 
     private void addTestNgUtilsArtifacts( List<String> classpath )
