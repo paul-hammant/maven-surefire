@@ -20,6 +20,7 @@ package org.apache.maven.surefire.booter;
  */
 
 import java.io.File;
+import java.util.Collection;
 
 /**
  * Represents the classpaths for the BooterConfiguration.
@@ -46,6 +47,8 @@ public class ClasspathConfiguration
     private final Classpath modulepathUrls;
     
     private final File moduleDescriptor;
+    
+    private final Collection<String> packages;
 
     /**
      * The surefire classpath to use when invoking in-process with the plugin
@@ -84,10 +87,12 @@ public class ClasspathConfiguration
         this.surefireClasspathUrls = surefireClassPathUrls;
         this.moduleDescriptor = null;
         this.modulepathUrls = null;
+        this.packages = null;
     }
 
     public ClasspathConfiguration( Classpath testClasspath, Classpath testModulepath, Classpath surefireClassPathUrls,
-                                   Classpath inprocClasspath, File moduleDescriptor, boolean enableAssertions,
+                                   Classpath inprocClasspath, File moduleDescriptor, Collection<String> packages,
+                                   boolean enableAssertions,
                                    boolean childDelegation )
     {
         this.enableAssertions = enableAssertions;
@@ -97,6 +102,7 @@ public class ClasspathConfiguration
         this.modulepathUrls = testModulepath;
         this.surefireClasspathUrls = surefireClassPathUrls;
         this.moduleDescriptor = moduleDescriptor;
+        this.packages = packages;
     }
 
     public ClassLoader createMergedClassLoader()
@@ -141,5 +147,10 @@ public class ClasspathConfiguration
     public boolean isChildDelegation()
     {
         return childDelegation;
+    }
+
+    public Collection<String> getPackages()
+    {
+        return packages;
     }
 }

@@ -39,6 +39,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -155,6 +156,7 @@ public class ForkConfiguration
         return createCommandLine( classPath, 
                               testModulePath != null ? testModulePath.getClassPath() : null, 
                               startupConfiguration.getClasspathConfiguration().getModuleDescriptor(),
+                              startupConfiguration.getClasspathConfiguration().getPackages(),
                               startupConfiguration.getClassLoaderConfiguration().isManifestOnlyJarRequestedAndUsable(),
                               startupConfiguration.isShadefire(),
                               startupConfiguration.isProviderMainClass() ? startupConfiguration.getActualClassName()
@@ -162,7 +164,8 @@ public class ForkConfiguration
     }
 
     OutputStreamFlushableCommandline createCommandLine( List<String> classPath, List<String> modulePath,
-                                                        File moduleDescriptor, boolean useJar, boolean shadefire,
+                                                        File moduleDescriptor, Collection<String> packages,
+                                                        boolean useJar, boolean shadefire,
                                                         String providerThatHasMainMethod, int threadNumber )
         throws SurefireBooterForkException
     {
@@ -192,7 +195,8 @@ public class ForkConfiguration
         {
             try
             {
-                File argsFile = createArgsFile( moduleDescriptor, classPath, providerThatHasMainMethod );
+                File argsFile =
+                    createArgsFile( moduleDescriptor, modulePath, classPath, packages, providerThatHasMainMethod );
                 
                 cli.createArg().setValue( "@" + escapeToPlatformPath( argsFile.getAbsolutePath() ) );
             }
@@ -341,7 +345,8 @@ public class ForkConfiguration
         }
     }
     
-    private File createArgsFile( File moduleDescriptor, List<String> classPath, String startClassName )
+    private File createArgsFile( File moduleDescriptor, List<String> modulePath, List<String> classPath,
+                                 Collection<String> packages, String startClassName )
         throws IOException
     {
         File file = File.createTempFile( "surefireargs", "", tempDirectory );
@@ -358,49 +363,56 @@ public class ForkConfiguration
             final String ps = System.getProperty( "path.separator" );
             
             writer = new BufferedWriter( new FileWriter( file ) );
-            
-            writer.write( "--module-path" );
-            writer.newLine();
-            
-            for ( String cpEntry : classPath )
+
+            if ( modulePath != null && !modulePath.isEmpty() )
             {
-                writer.append( cpEntry ).append( ps );
+                writer.write( "--module-path" );
+                writer.newLine();
+                
+                for ( String mp : modulePath )
+                {
+                    writer.append( mp ).append( ps );
+                }
+                writer.newLine();
             }
-            writer.newLine();
-            
+
+            if ( classPath != null && !classPath.isEmpty() )
+            {
+                writer.write( "--class-path" );
+                writer.newLine();
+                
+                for ( String cp : classPath )
+                {
+                    writer.append( cp ).append( ps );
+                }
+                writer.newLine();
+            }
+
             writer.write( "--patch-module" );
             writer.newLine();
-
-            // @TODO use testClassesDirectory
-            writer.append( moduleName ).append( '=' ).append( "target/classes" );
-            writer.newLine();
-            
-            writer.write( "--add-modules" );
-            writer.newLine();
-            
-            writer.write( moduleName );
-            writer.newLine();
-            
-            writer.write( "--add-reads" );
-            writer.newLine();
-            
-            writer.append( moduleName ).append( '=' ).append( "surefire.booter" );
+            writer.append( moduleName ).append( '=' ).append( "target/test-classes" );
             writer.newLine();
 
-            // foreach package
-            for ( String pckg : Collections.singletonList( moduleName ) )
+            for ( String pckg : Collections.singletonList( "com.app" ) )
             {
                 writer.write( "--add-exports" );
                 writer.newLine();
-
-                writer.append( moduleName ).append( '/' ).append( pckg ).append( '=' ).append( "surefire.booter" );
+                writer.append( moduleName ).append( '/' ).append( pckg ).append( '=' ).append( "ALL-UNNAMED" );
                 writer.newLine();
             }
-
-            writer.write( "-m" );
-            writer.newLine();
             
-            writer.append( "surefire.booter" ).append( '/' ).append( startClassName );
+            writer.write( "--add-modules" );
+            writer.newLine();
+            writer.append( moduleName );
+            writer.newLine();
+
+            writer.write( "--add-reads" );
+            writer.newLine();
+            writer.append( moduleName ).append( '=' ).append( "ALL-UNNAMED" );
+            writer.newLine();
+
+            writer.write( startClassName );
+            writer.newLine();
         }
         finally
         {

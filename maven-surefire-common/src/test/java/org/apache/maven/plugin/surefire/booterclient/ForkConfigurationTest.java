@@ -45,7 +45,7 @@ public class ForkConfigurationTest
         File cpElement = getTempClasspathFile();
 
         Commandline cli =
-            config.createCommandLine( Collections.singletonList( cpElement.getAbsolutePath() ), null, null, true, false, null, 1 );
+            config.createCommandLine( Collections.singletonList( cpElement.getAbsolutePath() ), null, null, null, true, false, null, 1 );
 
         String line = StringUtils.join( cli.getCommandline(), " " );
         assertTrue( line.contains( "-jar" ) );
@@ -59,7 +59,7 @@ public class ForkConfigurationTest
         ForkConfiguration forkConfiguration = getForkConfiguration( "abc\ndef", null );
 
         final Commandline commandLine =
-            forkConfiguration.createCommandLine( Collections.singletonList( cpElement.getAbsolutePath() ), null, null, false, false,
+            forkConfiguration.createCommandLine( Collections.singletonList( cpElement.getAbsolutePath() ), null, null, null, false, false,
                                                  null, 1 );
         assertTrue( commandLine.toString().contains( "abc def" ) );
     }
@@ -76,7 +76,7 @@ public class ForkConfigurationTest
         File cwd = new File( baseDir, "fork_${surefire.forkNumber}" );
 
         ForkConfiguration config = getForkConfiguration( null, "java", cwd.getCanonicalFile() );
-        Commandline commandLine = config.createCommandLine( Collections.<String>emptyList(), null, null, true, false, null, 1 );
+        Commandline commandLine = config.createCommandLine( Collections.<String>emptyList(), null, null, null, true, false, null, 1 );
 
         File forkDirectory = new File( baseDir, "fork_1" );
         forkDirectory.deleteOnExit();
@@ -101,7 +101,7 @@ public class ForkConfigurationTest
 
         try
         {
-            config.createCommandLine( Collections.<String>emptyList(), null, null, true, false, null, 1 );
+            config.createCommandLine( Collections.<String>emptyList(), null, null, null, true, false, null, 1 );
         }
         catch ( SurefireBooterForkException sbfe )
         {
@@ -130,7 +130,7 @@ public class ForkConfigurationTest
 
         try
         {
-            config.createCommandLine( Collections.<String>emptyList(), null, null, true, false, null, 1 );
+            config.createCommandLine( Collections.<String>emptyList(), null, null, null, true, false, null, 1 );
         }
         catch ( SurefireBooterForkException sbfe )
         {
