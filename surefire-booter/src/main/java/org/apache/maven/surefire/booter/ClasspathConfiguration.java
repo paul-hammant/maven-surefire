@@ -49,6 +49,8 @@ public class ClasspathConfiguration
     private final File moduleDescriptor;
     
     private final Collection<String> packages;
+    
+    private final File patchFile;
 
     /**
      * The surefire classpath to use when invoking in-process with the plugin
@@ -88,12 +90,12 @@ public class ClasspathConfiguration
         this.moduleDescriptor = null;
         this.modulepathUrls = null;
         this.packages = null;
+        this.patchFile = null;
     }
 
     public ClasspathConfiguration( Classpath testClasspath, Classpath testModulepath, Classpath surefireClassPathUrls,
                                    Classpath inprocClasspath, File moduleDescriptor, Collection<String> packages,
-                                   boolean enableAssertions,
-                                   boolean childDelegation )
+                                   File patchFile, boolean enableAssertions, boolean childDelegation )
     {
         this.enableAssertions = enableAssertions;
         this.childDelegation = childDelegation;
@@ -103,6 +105,7 @@ public class ClasspathConfiguration
         this.surefireClasspathUrls = surefireClassPathUrls;
         this.moduleDescriptor = moduleDescriptor;
         this.packages = packages;
+        this.patchFile = patchFile;
     }
 
     public ClassLoader createMergedClassLoader()
@@ -152,5 +155,10 @@ public class ClasspathConfiguration
     public Collection<String> getPackages()
     {
         return packages;
+    }
+
+    public File getPatchFile()
+    {
+        return patchFile;
     }
 }

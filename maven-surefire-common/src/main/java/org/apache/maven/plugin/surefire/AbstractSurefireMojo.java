@@ -21,7 +21,6 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -32,9 +31,12 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 import javax.annotation.Nonnull;
+
+import org.apache.commons.lang3.StringUtils;
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -1683,12 +1685,18 @@ public abstract class AbstractSurefireMojo
                 Classpath testClasspath = new Classpath( result.getClasspathElements() );
                 Classpath testModulepath = new Classpath( result.getModulepathElements().keySet() );
                 
-                Collection<String> packages = null;
+                Set<String> packages = new TreeSet<>();
+                
+                for ( Object file : scanResult.getFiles() )
+                {
+                   String className = (String) file;
+                   packages.add( StringUtils.substringBeforeLast( className, "." ) );
+                }
                 
                 classpathConfiguration =
                     new ClasspathConfiguration( testClasspath, testModulepath, providerClasspath, inprocClassPath,
-                                                moduleDescriptor, packages, effectiveIsEnableAssertions(),
-                                                isChildDelegation() );
+                                                moduleDescriptor, packages, getTestClassesDirectory(),
+                                                effectiveIsEnableAssertions(), isChildDelegation() );
 
                 getConsoleLogger().debug( testClasspath.getLogMessage( "test-classpath" ) );
                 getConsoleLogger().debug( testModulepath.getLogMessage( "test-modulepath" ) );

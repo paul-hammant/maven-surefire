@@ -157,6 +157,7 @@ public class ForkConfiguration
                               testModulePath != null ? testModulePath.getClassPath() : null, 
                               startupConfiguration.getClasspathConfiguration().getModuleDescriptor(),
                               startupConfiguration.getClasspathConfiguration().getPackages(),
+                              startupConfiguration.getClasspathConfiguration().getPatchFile(),
                               startupConfiguration.getClassLoaderConfiguration().isManifestOnlyJarRequestedAndUsable(),
                               startupConfiguration.isShadefire(),
                               startupConfiguration.isProviderMainClass() ? startupConfiguration.getActualClassName()
@@ -165,7 +166,7 @@ public class ForkConfiguration
 
     OutputStreamFlushableCommandline createCommandLine( List<String> classPath, List<String> modulePath,
                                                         File moduleDescriptor, Collection<String> packages,
-                                                        boolean useJar, boolean shadefire,
+                                                        File patchFile, boolean useJar, boolean shadefire,
                                                         String providerThatHasMainMethod, int threadNumber )
         throws SurefireBooterForkException
     {
@@ -196,7 +197,8 @@ public class ForkConfiguration
             try
             {
                 File argsFile =
-                    createArgsFile( moduleDescriptor, modulePath, classPath, packages, providerThatHasMainMethod );
+                    createArgsFile( moduleDescriptor, modulePath, classPath, packages, patchFile,
+                                    providerThatHasMainMethod );
                 
                 cli.createArg().setValue( "@" + escapeToPlatformPath( argsFile.getAbsolutePath() ) );
             }
@@ -346,7 +348,7 @@ public class ForkConfiguration
     }
     
     private File createArgsFile( File moduleDescriptor, List<String> modulePath, List<String> classPath,
-                                 Collection<String> packages, String startClassName )
+                                 Collection<String> packages, File patchFile, String startClassName )
         throws IOException
     {
         File file = File.createTempFile( "surefireargs", "", tempDirectory );
@@ -390,10 +392,10 @@ public class ForkConfiguration
 
             writer.write( "--patch-module" );
             writer.newLine();
-            writer.append( moduleName ).append( '=' ).append( "target/test-classes" );
+            writer.append( moduleName ).append( '=' ).append( patchFile.getPath() );
             writer.newLine();
 
-            for ( String pckg : Collections.singletonList( "com.app" ) )
+            for ( String pckg : packages )
             {
                 writer.write( "--add-exports" );
                 writer.newLine();
