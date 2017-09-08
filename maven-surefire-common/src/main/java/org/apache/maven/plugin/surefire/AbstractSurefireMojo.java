@@ -1698,12 +1698,12 @@ public abstract class AbstractSurefireMojo
                                                 moduleDescriptor, packages, getTestClassesDirectory(),
                                                 effectiveIsEnableAssertions(), isChildDelegation() );
 
-                getConsoleLogger().debug( testClasspath.getLogMessage( "test-classpath" ) );
-                getConsoleLogger().debug( testModulepath.getLogMessage( "test-modulepath" ) );
+                getConsoleLogger().debug( testClasspath.getLogMessage( "test", "classpath" ) );
+                getConsoleLogger().debug( testModulepath.getLogMessage( "test", "modulepath" ) );
                 getConsoleLogger().debug( providerClasspath.getLogMessage( "provider" ) );
 
-                getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test-classpath(compact)" ) );
-                getConsoleLogger().debug( testModulepath.getCompactLogMessage( "test-modulepath(compact)" ) );
+                getConsoleLogger().debug( testClasspath.getCompactLogMessage( "test(compact)", "classpath" ) );
+                getConsoleLogger().debug( testModulepath.getCompactLogMessage( "test(compact)", "modulepath" ) );
                 getConsoleLogger().debug( providerClasspath.getCompactLogMessage( "provider(compact)" ) );
             }
             else
