@@ -1685,7 +1685,7 @@ public abstract class AbstractSurefireMojo
                 Classpath testClasspath = new Classpath( result.getClasspathElements() );
                 Classpath testModulepath = new Classpath( result.getModulepathElements().keySet() );
                 
-                Set<String> packages = new TreeSet<>();
+                Set<String> packages = new TreeSet<String>();
                 
                 for ( Object file : scanResult.getFiles() )
                 {
