@@ -44,6 +44,7 @@ import static org.junit.Assume.assumeTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyDouble;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.powermock.api.mockito.PowerMockito.mockStatic;
 import static org.powermock.api.mockito.PowerMockito.verifyStatic;
@@ -322,10 +323,10 @@ public class SystemUtilsTest
                 assertThat( SystemUtils.isJava9AtLeast( path.getAbsolutePath() ) ).isFalse();
             }
 
-            verifyStatic( Mockito.times( 0 ) );
+            verifyStatic( times( 0 ) );
             SystemUtils.toJdkVersionFromReleaseFile( any( File.class ) );
 
-            verifyStatic( Mockito.times( 1 ) );
+            verifyStatic( times( 1 ) );
             SystemUtils.isBuiltInJava9AtLeast();
         }
 
