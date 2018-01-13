@@ -25,6 +25,9 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 
+import static org.apache.maven.surefire.its.fixture.SurefireLauncher.EXT_JDK_HOME;
+import static org.apache.maven.surefire.its.fixture.SurefireLauncher.EXT_JDK_HOME_KEY;
+
 /**
  * Running Surefire on the top of JDK 9 and should be able to load
  * classes of multiple different Jigsaw modules without error.
@@ -59,7 +62,7 @@ public class Java9FullApiIT
         OutputValidator validator = assumeJava9Property()
                                             .setForkJvm()
                                             .debugLogging()
-                                            .sysProp( JDK_HOME_KEY, new File( JDK_HOME ).getCanonicalPath() )
+                                            .sysProp( EXT_JDK_HOME_KEY, new File( EXT_JDK_HOME ).getCanonicalPath() )
                                             .execute( "verify" )
                                             .verifyErrorFree( 1 );
 

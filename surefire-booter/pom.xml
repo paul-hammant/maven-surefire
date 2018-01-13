@@ -115,6 +115,13 @@
           <includes>
             <include>**/JUnit4SuiteTest.java</include>
           </includes>
+          <!--todo in version 3.0 remove old commons-lang3 and use 3.7+ -->
+          <classpathDependencyExcludes>
+            <classpathDependencyExclude>org.apache.commons:commons-lang3</classpathDependencyExclude>
+          </classpathDependencyExcludes>
+          <additionalClasspathElements>
+            <additionalClasspathElement>${maven.repo.local}/org/apache/commons/commons-lang3/3.7/commons-lang3-3.7.jar</additionalClasspathElement>
+          </additionalClasspathElements>
         </configuration>
       </plugin>
       <plugin>
